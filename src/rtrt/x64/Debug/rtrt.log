@@ -1,0 +1,7 @@
+﻿  1>Compiling shader shaders\raytraceShadow.rchit
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(237,5): warning MSB8064: Custom build for item "shaders\raytraceShadow.rchit" succeeded, but specified dependency "d:\digipensub\digipen\cs398\rtrtframework\cs398_jungyeon.lee\src\shaders\raytraceshadow.rchit" does not exist. This may cause incremental build to work incorrectly.
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(237,5): warning MSB8065: Custom build for item "shaders\raytraceShadow.rchit" succeeded, but specified output "d:\digipensub\digipen\cs398\rtrtframework\cs398_jungyeon.lee\src\spv\raytraceshadow.rchit.spv" has not been created. This may cause incremental build to work incorrectly.
+  vkapp.cpp
+  rtrt.vcxproj -> D:\DigipenSub\digipen\CS398\rtrtFramework\CS398_jungyeon.lee\src\x64\Debug\rtrt.exe
+  Copy assimp library to the exe file's positon.
+  0개 파일이 복사되었습니다.

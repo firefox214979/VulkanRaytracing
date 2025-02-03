@@ -1,0 +1,468 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_scalar_block_layout : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64  : require
+#extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_buffer_reference2 : require
+#extension GL_EXT_nonuniform_qualifier : enable
+
+#include "shared_structs.h"
+#include "rng.glsl"
+
+#define pi (3.141592)
+#define pi2 (2.0*pi)
+
+// The ray payload; structure is defined in shared_structs.h;
+// Attached to a ray, and used to communicate between shader stages.
+layout(location=0) rayPayloadEXT RayPayload payload;
+
+// Push constant for ray tracing; structure is defined in shared_structs.h;
+// Filled in by application, and pushed to shaders as part of the pipeline invocation
+layout(push_constant) uniform _PushConstantRay { PushConstantRay pcRay; };
+
+// Ray tracing descriptor set: 0:acceleration structure, and 1: color output image
+layout(set=0, binding=0) uniform accelerationStructureEXT topLevelAS;
+layout(set=0, binding=1, rgba32f) uniform image2D colCurr; // Output image: m_rtColCurrBuffer
+// Many more buffers (at bindings 2 ... 7) will be added to this eventually.
+layout(set = 0, binding = 2, scalar) buffer _emitter { Emitter list[]; } emitter;
+
+layout(set = 0, binding = 3, rgba32f) uniform image2D colPrev;
+layout(set = 0, binding = 4, rgba32f) uniform image2D ndCurr;
+layout(set = 0, binding = 5, rgba32f) uniform image2D ndPrev;
+layout(set = 0, binding = 6, rgba32f) uniform image2D kdCurr;
+layout(set = 0, binding = 7, rgba32f) uniform image2D kdPrev;
+
+// Object model descriptor set: 0: matrices, 1:object buffer addresses, 2: texture list
+layout(set=1, binding=0) uniform _MatrixUniforms { MatrixUniforms mats; };
+layout(set=1, binding=1, scalar) buffer ObjDesc_ { ObjDesc i[]; } objDesc;
+layout(set=1, binding=2) uniform sampler2D textureSamplers[];
+
+// Object buffered data; dereferenced from ObjDesc addresses;  Must be global
+layout(buffer_reference, scalar) buffer Vertices {Vertex v[]; }; // Position, normals, ..
+layout(buffer_reference, scalar) buffer Indices {ivec3 i[]; }; // Triangle indices
+layout(buffer_reference, scalar) buffer Materials {Material m[]; }; // Array of all materials
+layout(buffer_reference, scalar) buffer MatIndices {int i[]; }; // Material ID for each triangle
+
+// @@ Raycasting: Write EvalBrdf -- The BRDF lighting calculation
+/* Project3
+vec3 EvalBrdf(vec3 N, vec3 L, vec3 V, Material mat) 
+{
+    float alpha = mat.shininess;
+    vec3 H = (L + V) / length(L + V);
+    float tan_v = sqrt(1.0f - pow(dot(V, N), 2)) / dot(V, N);
+    float a = sqrt(alpha / 2.0f + 1.0f) / tan_v;
+
+    float D = ((alpha + 1.0f) / pi2) * pow(dot(N, H), alpha);
+    vec3 F = mat.specular + (vec3(1.0f) - mat.specular) * pow(1.0f - dot(L, H), 5.0f);
+    
+    //float G = 1.0f / pow(dot(L, H), 2.0f);
+    //Beckman uses this very accurate rational approximation
+    float G = (a < 1.6f ? (3.535 * a + 2.181 * a * a) / (1.0 + 2.276 * a + 2.577 * a * a) : 1.0f);
+
+    return (mat.diffuse / pi) + (D * F * G) / (4.0f * dot(L, N) * dot(V, N));
+}
+*/
+vec3 EvalBrdf(vec3 N, vec3 L, vec3 V, Material mat)
+{
+    vec3 Kd = mat.diffuse;
+    vec3 Ks = mat.specular;
+    const float alpha = mat.shininess;
+
+    vec3 H = normalize(L + V);
+    float LH = dot(L, H);
+
+    vec3 F = Ks + (vec3(1.0) - Ks) * pow((1 - LH), 5);
+
+    float mN = dot(H, N);
+    float tan_square_theta_m = (1.0 - mN * mN) / mN * mN;
+    float alpha_square = alpha * alpha;
+    float D = clamp(mN, 0.0, 1.0) * alpha_square
+            / (pi * pow(mN, 4) * pow(alpha_square + tan_square_theta_m, 2));
+
+    float mV = dot(H, V);
+    float NV = dot(N, V);
+    float tan_square_theta_v = (1.0 -  NV * NV) /  NV * NV;
+    float GV;
+    if(NV > 1.0 || sqrt(tan_square_theta_v) == 0)
+    {
+        GV = 1.0;
+    }
+    else
+    {
+        int x;
+        if (mV / NV > 0) x = 1;
+        else x = 0;
+        GV = x * 2 / (1.0 + sqrt(1 + alpha_square * tan_square_theta_v));
+    }
+
+    float mL = LH; // dot(L, H);
+    float NL = dot(N, L);
+    float tan_square_theta_l = (1.0 -  NL * NL) /  NL * NL;
+    float GL;
+    if(NL > 1.0 || sqrt(tan_square_theta_l) == 0)
+    {
+        GL = 1.0;
+    }
+    else
+    {
+        int x;
+        if (mL / NL > 0) x = 1;
+        else x = 0;
+        GL = x * 2 / (1.0 + sqrt(1 + alpha_square * tan_square_theta_l));
+    }
+    float G = GV * GL;
+
+    return max(NL, 0.0) * ((Kd / pi) + ( (D * G * F) / (4 * abs(NL) * abs(NV)) ) );
+} 
+
+vec3 SampleLobe(vec3 A, float c, float phi) {
+    float s = sqrt(1.0 - c * c);
+    vec3 K = vec3(s * cos(phi), s * sin(phi), c);
+
+    if (abs(A.z - 1.0) < 1e-3) return K;            
+    if (abs(A.z + 1.0) < 1e-3) return vec3(K.x, -K.y, -K.z); 
+
+    A = normalize(A);  
+    vec3 B = normalize(vec3(-A.y, A.x, 0.0)); 
+    vec3 C = cross(A, B);  
+    
+    return K.x * B + K.y * C + K.z * A;
+}
+
+// @@ Pathtracing: Write SampleBrdf, PdfBrdf, ...
+vec3 SampleBrdf(inout uint seed, in vec3 N) 
+{ 
+    float r1 = sqrt(rnd(seed));
+    float r2 = 2.0 * 3.14159 * rnd(seed);
+    return SampleLobe(N, r1, r2);
+}
+
+float PdfBrdf(vec3 N, vec3 Wi) 
+{
+    return max(dot(N, Wi), 0.0) / 3.14159;
+}
+// and more
+vec3 SampleTriangle(inout uint seed, vec3 A, vec3 B, vec3 C)
+{
+    float b2 = rnd(seed);
+    float b1 = rnd(seed);
+    float b0 = 1.0 - b1 - b2;
+    
+    if(b0 < 0.0)    // Test for outer triangle; If so invert into inner triangle
+    {
+        b1 = 1.0 - b1;
+        b2 = 1.0 - b2;
+        b0 = 1.0 - b1 - b2;
+    }
+
+    return b0*A + b1*B + b2*C;
+}
+Emitter SampleLight(inout uint seed)
+{
+    Emitter randLight = emitter.list[uint(rnd(seed) * emitter.list.length())];
+    randLight.point = SampleTriangle(seed, randLight.v0, randLight.v1, randLight.v2);
+
+    return randLight;
+}
+float PdfLight(Emitter L)
+{
+    return 1.0 / (L.area * emitter.list.length());
+}
+vec3 EvalLight(Emitter L)
+{
+    return L.emission;
+}
+float GeometryFactor(vec3 Pa, vec3 Na, vec3 Pb, vec3 Nb)
+{
+    vec3 D = Pa - Pb;
+    return abs((dot(D, Na) * dot(D, Nb)) / pow(dot(D, D), 2.0));
+}
+
+// Given a ray's payload indicating a triangle has been hit
+// (payload.instanceIndex, and payload.primitiveIndex),
+// lookup/calculate the material, texture and normal at the hit point
+// from the three vertices of the hit triangle.
+void GetHitObjectData(out Material mat, out vec3 nrm)
+{
+    // Object data (containing 4 device addresses)
+    ObjDesc    objResources = objDesc.i[payload.instanceIndex];
+    
+    // Dereference the object's 4 device addresses
+    Vertices   vertices    = Vertices(objResources.vertexAddress);
+    Indices    indices     = Indices(objResources.indexAddress);
+    Materials  materials   = Materials(objResources.materialAddress);
+    MatIndices matIndices  = MatIndices(objResources.materialIndexAddress);
+  
+    // Use gl_PrimitiveID to access the triangle's vertices and material
+    ivec3 ind    = indices.i[payload.primitiveIndex]; // The triangle hit
+    int matIdx   = matIndices.i[payload.primitiveIndex]; // The triangles material index
+    mat = materials.m[matIdx]; // The triangles material
+
+    // Vertex of the triangle (Vertex has pos, nrm, tex)
+    Vertex v0 = vertices.v[ind.x];
+    Vertex v1 = vertices.v[ind.y];
+    Vertex v2 = vertices.v[ind.z];
+
+    // Compute normal at hit position using the provided barycentric coordinates.
+    const vec3 bc = payload.bc; // The barycentric coordinates of the hit point
+    nrm  = bc.x*v0.nrm + bc.y*v1.nrm + bc.z*v2.nrm; // Normal = combo of three vertex normals
+
+    // If the material has a texture, read texture and use as the
+    // point's diffuse color.
+    if (mat.textureId >= 0) {
+        vec2 uv =  bc.x*v0.texCoord + bc.y*v1.texCoord + bc.z*v2.texCoord;
+        uint txtId = objResources.txtOffset + mat.textureId; // tex coord from three vertices
+        mat.diffuse = texture(textureSamplers[(txtId)], uv).xyz; }
+}
+
+float FindWeight(int i, int j, vec2 offset, ivec2 iloc, vec3 firstNrm, float firstDepth)
+{
+    const float n_threshold = 0.95;
+    const float d_threshold = 0.15;
+
+    ivec2 neighborCoord = iloc + ivec2(i, j);
+    if (neighborCoord.x < 0 || neighborCoord.x >= gl_LaunchSizeEXT.x ||
+        neighborCoord.y < 0 || neighborCoord.y >= gl_LaunchSizeEXT.y) {
+        return 0.0; 
+    }
+
+    vec4 prevNd = imageLoad(ndPrev, neighborCoord);
+    vec3 prevNrm = prevNd.xyz;
+    float prevDepth = prevNd.w;
+    
+    if (any(isnan(prevNd)) || any(isinf(prevNd))) {
+        return 0.0; 
+    }
+
+    float b;
+    if(i == 0 && j == 0)
+        b = (1 - offset.x) * (1 - offset.y);
+    else if(i == 1 && j == 0)
+        b = (offset.x) * (1 - offset.y);
+    else if(i == 0 && j == 1)
+        b = (1 - offset.x) * (offset.y);
+    else
+        b = (offset.x) * (offset.y);
+    
+    float depthWeight = (abs(firstDepth - prevDepth) < d_threshold ? 1.0 : 0.0);
+    float normalWeight = (dot(firstNrm, prevNrm) > n_threshold ? 1.0 : 0.0); 
+
+    return b * depthWeight * normalWeight;
+}
+
+void main() 
+{
+    // Raycasting: Since the alignment of pcRay is SO easy to get wrong, test it
+    // here and flag problems with a fully red screen.
+    if (pcRay.alignmentTest != 1234) {
+        imageStore(colCurr, ivec2(gl_LaunchIDEXT.xy), vec4(1,0,0,0));
+        return; }
+    
+    // This shader's invocation is for the pixel indicated by
+    // gl_LaunchIDEXT. Calculate that pixel's center (in NDC) and
+    // convert to a ray in world coordinates.
+    const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+    vec2 pixelNDC = pixelCenter/vec2(gl_LaunchSizeEXT.xy)*2.0 - 1.0;
+ 
+    vec3 eyeW    = (mats.viewInverse * vec4(0, 0, 0, 1)).xyz;
+    vec4 pixelH = mats.viewInverse * mats.projInverse * vec4(pixelNDC.x, pixelNDC.y, 1, 1);
+    vec3 pixelW = pixelH.xyz/pixelH.w;
+
+    // This pixel's ray:
+    vec3 rayOrigin    = eyeW;
+    vec3 rayDirection = normalize(pixelW - eyeW);
+
+    // The ray-casting / path-tracing block/loop will store the
+    // pixel's calculated color in C.
+    vec3 C = vec3(0,0,0);
+    // The path tracing algorithm will accumulate a product of f/p weights in W.
+    vec3 W = vec3(1,1,1);
+    
+    // @@ Pathtracing: Initialize random pixel seed *very* carefully! (See notes.)
+    payload.seed = tea(gl_LaunchIDEXT.y*gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, pcRay.frameSeed);
+    // @@ History: Initialize first-hit data
+    bool firstHit;
+    float firstDepth;
+    vec3 firstNrm, firstKd, firstPos;
+    vec3 oldAve = vec3(0, 0, 0), newAve = vec3(0, 0, 0);
+    float oldN = 0.0, newN = 0.0;
+
+    // @@ Pathtracing: Eventually, this will be the Monte-Carlo loop.
+    for (int i=0; i<pcRay.depth;  i++)
+        {
+        payload.hit = false;
+        // Fire the ray;  hit or miss shaders will be invoked, passing results back in the payload
+        traceRayEXT(topLevelAS,           // acceleration structure
+                    gl_RayFlagsOpaqueEXT, // rayFlags
+                    0xFF,                 // cullMask
+                    0,                    // sbtRecordOffset for the hitgroups
+                    0,                    // sbtRecordStride for the hitgroups
+                    0,                    // missIndex
+                    rayOrigin,            // ray origin
+                    0.001,                // ray min range
+                    rayDirection,                 // ray direction
+                    10000.0,              // ray max range
+                    0                     // payload (location = 0)
+                    );
+
+        // If nothing was hit
+        if (!payload.hit) {
+            //C = vec3(0,0,0);
+            break;
+            // @@ Pathtracing: break from the Monte-Carlo loop
+            // @@ History: if (i==0) record that a first-hit did not occur
+            if(i == 0)
+            {
+                firstHit = false;
+            }
+        }
+        
+        // If something was hit, find the object data.
+        Material mat;
+        vec3 nrm;
+        GetHitObjectData(mat, nrm);
+        mat.emission *= 2.0;
+
+        // @@ History: if (i==0) record first-hit stuff.
+        if(i == 0)
+        {
+            firstHit = payload.hit;
+            firstDepth = payload.hitDist;
+            firstPos = payload.hitPos;
+            firstKd = mat.diffuse;
+            firstNrm = nrm;
+        }
+        // Test if the hit point's material is a light 
+        if (dot(mat.emission,mat.emission) > 0.0) 
+        {
+            if(pcRay.explicitLight)
+                C += 0.5 * mat.emission * W;
+            else
+                C += mat.emission * W;
+            break; 
+        }
+
+        // @@ Explicit light connection (if implemented) goes here
+        if(pcRay.explicitLight)
+        {
+            Emitter light = SampleLight(payload.seed);
+            vec3 Wi =  normalize(light.point - payload.hitPos);
+            float dist = length(light.point - payload.hitPos);
+            payload.hit = true;
+
+            traceRayEXT(topLevelAS,                         // acceleration structure
+                    gl_RayFlagsOpaqueEXT                    // rayFlags
+                    | gl_RayFlagsTerminateOnFirstHitEXT
+                    | gl_RayFlagsSkipClosestHitShaderEXT,
+                    0xFF,                                   // cullMask
+                    0,                                      // sbtRecordOffset for the hitgroups
+                    0,                                      // sbtRecordStride for the hitgroups
+                    0,                                      // missIndex
+                    payload.hitPos,                         // ray origin
+                    0.001,                                  // ray min range
+                    Wi,                                     // ray direction
+                    dist - 0.001,                           // ray max range
+                    0                                       // payload (location = 0)
+                    );
+
+            if(!payload.hit)
+            {
+                vec3 N = normalize(nrm);
+                vec3 Wo = -rayDirection;
+                vec3 f = EvalBrdf(N, Wi, Wo, mat);
+                float p = PdfLight(light) / GeometryFactor(payload.hitPos, N, light.point, light.normal);
+                
+                C += 0.5 * W * f/p * EvalLight(light);
+            }
+        }
+
+        // @@ Raycasting: Do lighting calculation here
+        //   C += LIGHT * (N dot Wi) * EvalBRDF(N, Wi, Wo, mat)
+        // Data for the calculation:
+        //   Normal N = normalize(nrm) 
+        //   Light input direction Wi = normalize(pcRay.scLightPos-payload.hitPos)
+        //   Light output direction Wo = -rayDirection (Note the negation!)
+        //   Light value from pcRay.scLightInt
+        //   Material properties from mat possibly modified by a texture
+        // As a great debugging aid. try C += abs(nrm); 
+        
+        // vec3 Wi = normalize(pcRay.scLightPos - payload.hitPos);
+        // vec3 Wo = -rayDirection;
+        
+        // C += pcRay.scLightInt * max(0.0, dot(N, Wi)) * EvalBrdf(N, Wi, Wo, mat);
+
+
+        // @@ Pathtracing:  Accumulate product of lighting calculations into W.
+        //   Sample random direction Wi = ?
+        //   Calculate f = (N dot Wi) * EvalBRDF(N, L, V, mat)
+        //   Calculate p = ?
+        //   Accumulate f/p into W;  No C += here anymore.
+        //   Setup for next loop iteration.
+
+        vec3 P = payload.hitPos;
+        vec3 N = normalize(nrm);
+        vec3 Wi = SampleBrdf(payload.seed, N);  
+        vec3 Wo = -rayDirection;
+        vec3 f = EvalBrdf(N, Wi, Wo, mat);  
+        float p = PdfBrdf(N, Wi) * pcRay.rr; 
+        if (p < 1e-6) break;
+        W *= f / p;
+
+        rayOrigin = payload.hitPos;
+        rayDirection = Wi;
+
+
+        } // End of Monte-Carlo block/loop
+
+    
+    // @@ Pathtracing: Accumulate C into output pixel.
+    if (pcRay.clear) {
+        imageStore(colCurr, ivec2(gl_LaunchIDEXT.xy), vec4(C, 1.0)); 
+    } else {
+        vec4 old = imageLoad(colCurr, ivec2(gl_LaunchIDEXT.xy));
+        vec3 Ave = old.xyz;
+        float N = old.w;
+        Ave += (C - Ave) / (N + 1.0);
+        imageStore(colCurr, ivec2(gl_LaunchIDEXT.xy), vec4(Ave, N + 1.0));
+    }
+    // @@ History: Accumulate C with a back-projected pixel and write to the output pixel
+    vec4 screenH = (mats.priorViewProj * vec4(firstPos, 1.0));  // Project to prev buffers
+    vec2 screen = ((screenH.xy / screenH.w) + vec2(1.0)) / 2.0; // H-division and map to [0, 1]
+
+    // Calculate Previous Frame Accumulation
+    vec2 floc = screen * gl_LaunchSizeEXT.xy - vec2(0.5);
+    vec2 offset = fract(floc);                              // 0 to 1 offset between 4 neighbors
+    ivec2 iloc = ivec2(floc);                                // (0, 0) corner of the 4 neighbors
+
+    float w00 = FindWeight(0, 0, offset, iloc, firstNrm, firstDepth);
+    float w10 = FindWeight(1, 0, offset, iloc, firstNrm, firstDepth);
+    float w01 = FindWeight(0, 1, offset, iloc, firstNrm, firstDepth);
+    float w11 = FindWeight(1, 1, offset, iloc, firstNrm, firstDepth);
+
+    vec4 P00 = imageLoad(colPrev, iloc + ivec2(0, 0));
+    vec4 P10 = imageLoad(colPrev, iloc + ivec2(1, 0));
+    vec4 P01 = imageLoad(colPrev, iloc + ivec2(0, 1));
+    vec4 P11 = imageLoad(colPrev, iloc + ivec2(1, 1));
+
+    vec4 P = (w00 * P00 + w10 * P10 + w01 * P01 + w11 * P11) / (w00 + w10 + w01 + w11);
+
+    oldAve = P.xyz;
+    oldN = P.w;
+
+    if(firstHit == false ||
+        (screen.x < 0.0 || screen.x > 1.0) || (screen.y < 0.0 || screen.y > 1.0) ||
+        any(isnan(P)) || any(isinf(P)))
+    {
+        oldAve = vec3(0.5);
+        oldN = 1;
+    }
+
+    newN = oldN + 1;
+    newAve = oldAve + (C - oldAve) / newN;
+
+    imageStore(colCurr, ivec2(gl_LaunchIDEXT.xy), vec4(newAve, newN));
+    imageStore(kdCurr, ivec2(gl_LaunchIDEXT.xy), vec4(firstKd, 0.0));
+    imageStore(ndCurr, ivec2(gl_LaunchIDEXT.xy), vec4(firstNrm, firstDepth));
+}
+
+//  LocalWords:  Pathtracing Raycasting

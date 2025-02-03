@@ -1,0 +1,37 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "D:\\DigipenSub\\digipen\\CS398\\rtrtFramework\\CS398_jungyeon.lee\\src\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{2422A7B3-65D1-4210-84FC-E88FC18BEFC1}|rtrt.vcxproj|D:\\DigipenSub\\digipen\\CS398\\rtrtFramework\\CS398_jungyeon.lee\\src\\vkapp.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{2422A7B3-65D1-4210-84FC-E88FC18BEFC1}|rtrt.vcxproj|solutionrelative:vkapp.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "vkapp.cpp",
+              "DocumentMoniker": "D:\\DigipenSub\\digipen\\CS398\\rtrtFramework\\CS398_jungyeon.lee\\src\\vkapp.cpp",
+              "RelativeDocumentMoniker": "vkapp.cpp",
+              "ToolTip": "D:\\DigipenSub\\digipen\\CS398\\rtrtFramework\\CS398_jungyeon.lee\\src\\vkapp.cpp",
+              "RelativeToolTip": "vkapp.cpp",
+              "ViewState": "AgIAADkAAAAAAAAAAAAAAD0AAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2024-12-14T17:39:31.439Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

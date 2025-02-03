@@ -1,0 +1,20 @@
+^D:\DIGIPENSUB\DIGIPEN\CS398\RTRTFRAMEWORK\CS398_JUNGYEON.LEE\SRC\SHADERS\POST.VERT
+cmd /C "if exist shaders\post.vert    %VULKAN_SDK%/Bin/glslangValidator.exe -DVER=99 -V --target-env vulkan1.2 -o spv\post.vert.spv   shaders\post.vert"
+^D:\DIGIPENSUB\DIGIPEN\CS398\RTRTFRAMEWORK\CS398_JUNGYEON.LEE\SRC\SHADERS\POST.FRAG
+cmd /C "if exist shaders\post.frag    %VULKAN_SDK%/Bin/glslangValidator.exe -DVER=99 -V --target-env vulkan1.2 -o spv\post.frag.spv   shaders\post.frag"
+^D:\DIGIPENSUB\DIGIPEN\CS398\RTRTFRAMEWORK\CS398_JUNGYEON.LEE\SRC\SHADERS\SCANLINE.VERT
+cmd /C "if exist shaders\scanline.vert    %VULKAN_SDK%/Bin/glslangValidator.exe -DVER=99 -V  --target-env vulkan1.2 -o spv\scanline.vert.spv   shaders\scanline.vert"
+^D:\DIGIPENSUB\DIGIPEN\CS398\RTRTFRAMEWORK\CS398_JUNGYEON.LEE\SRC\SHADERS\SCANLINE.FRAG
+cmd /C "if exist shaders\scanline.frag    %VULKAN_SDK%/Bin/glslangValidator.exe -DVER=99 -V --target-env vulkan1.2 -o spv\scanline.frag.spv   shaders\scanline.frag"
+^D:\DIGIPENSUB\DIGIPEN\CS398\RTRTFRAMEWORK\CS398_JUNGYEON.LEE\SRC\SHADERS\DENOISE.COMP
+cmd /C "if exist shaders\denoise.comp    %VULKAN_SDK%/Bin/glslangValidator.exe -DVER=99 -V --target-env vulkan1.2 -o spv\denoise.comp.spv   shaders\denoise.comp"
+^D:\DIGIPENSUB\DIGIPEN\CS398\RTRTFRAMEWORK\CS398_JUNGYEON.LEE\SRC\SHADERS\RAYTRACE.RCHIT
+cmd /C "if exist shaders\raytrace.rchit    %VULKAN_SDK%/Bin/glslangValidator.exe -DVER=99 -V --target-env vulkan1.2 -o spv\raytrace.rchit.spv   shaders\raytrace.rchit"
+^D:\DIGIPENSUB\DIGIPEN\CS398\RTRTFRAMEWORK\CS398_JUNGYEON.LEE\SRC\SHADERS\RAYTRACE.RGEN
+cmd /C "if exist shaders\raytrace.rgen    %VULKAN_SDK%/Bin/glslangValidator.exe -DVER=99 -V --target-env vulkan1.2 -o spv\raytrace.rgen.spv   shaders\raytrace.rgen"
+^D:\DIGIPENSUB\DIGIPEN\CS398\RTRTFRAMEWORK\CS398_JUNGYEON.LEE\SRC\SHADERS\RAYTRACE.RMISS
+cmd /C "if exist shaders\raytrace.rmiss    %VULKAN_SDK%/Bin/glslangValidator.exe -DVER=99 -V --target-env vulkan1.2 -o spv\raytrace.rmiss.spv   shaders\raytrace.rmiss"
+^D:\DIGIPENSUB\DIGIPEN\CS398\RTRTFRAMEWORK\CS398_JUNGYEON.LEE\SRC\SHADERS\RAYTRACESHADOW.RCHIT
+cmd /C "if exist shaders\raytraceShadow.rchit    %VULKAN_SDK%/Bin/glslangValidator.exe -DVER=99 -V --target-env vulkan1.2 -o spv\raytraceShadow.rchit.spv   shaders\raytraceShadow.rchit"
+^D:\DIGIPENSUB\DIGIPEN\CS398\RTRTFRAMEWORK\CS398_JUNGYEON.LEE\SRC\SHADERS\RAYTRACESHADOW.RMISS
+cmd /C "if exist shaders\raytraceShadow.rmiss    %VULKAN_SDK%/Bin/glslangValidator.exe -DVER=99 -V --target-env vulkan1.2 -o spv\raytraceShadow.rmiss.spv   shaders\raytraceShadow.rmiss"
