@@ -24,8 +24,6 @@ void VkApp::initBufferWrap(BufferWrap& wrap, VkDeviceSize size, VkBufferUsageFla
 
     vkAllocateMemory(m_device, &allocInfo, nullptr, &wrap.memory);
     vkBindBufferMemory(m_device, wrap.buffer, wrap.memory, 0);
-
-    // @@ Verify success of vkAllocateMemory and vkBindBufferMemory.
 }
 
 
@@ -114,8 +112,6 @@ void VkApp::initImageWrap(ImageWrap& wrap,
         
         submitTempCmdBuffer(commandBuffer);
     }
-
-    // @@ Verify success for vkCreateImage,  vkAllocateMemory, vkCreateImageView
 }
 
 void VkApp::initTextureSampler(ImageWrap& wrap)
@@ -138,8 +134,6 @@ void VkApp::initTextureSampler(ImageWrap& wrap)
     samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
     vkCreateSampler(m_device, &samplerInfo, nullptr, &wrap.sampler);
-    
-    // @@ Verify success for vkCreateSampler
 }
 
 

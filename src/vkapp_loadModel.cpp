@@ -130,12 +130,11 @@ bool VkApp::loadModel(const std::string& filename, glm::mat4 transform)
     
 
     std::vector<Emitter> lightList; 
-    // @@ The raytracer will eventually need a list of lights.  By
+    // The raytracer will eventually need a list of lights.  By
     // "light" I mean a triangle in the triangle list such that the
     // triangle's associated material type has a non-zero emission.
     // Create such a list into the above lightList vector,
     //
-    // Hints:
     // 1: Loop through the indices of the model's triangles with
     //      for (uint i=0;  i<meshdata.matIndx.size();  i++)
     // 2: Get the material type of triangle i with
@@ -180,9 +179,6 @@ bool VkApp::loadModel(const std::string& filename, glm::mat4 transform)
         emitterList.push_back(emitter);
       }
     }
-    // @@ Project 4b is optional, but if you do it, here is where you
-    // send the above lightList to the shader.  The project 4b
-    // document provides details.
     
     initBufferWrap(m_lightBuff, sizeof(emitterList[0]) * emitterList.size(),
       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -248,13 +244,6 @@ bool VkApp::loadModel(const std::string& filename, glm::mat4 transform)
 
     m_objData.emplace_back(object);
     m_objDesc.emplace_back(desc);
-
-    // @@ At shutdown:
-    //   Destroy all textures with:  for (t:m_objText) t.destroy(m_device); 
-    //   Destroy the 4 buffers containing each object's data with:
-    //      for (auto& ob : m_objData) {
-    //        ob.vertexBuffer.destroy(m_device); 
-    //        and similar for ob.indexBuffer, ob.matColorBuffer, ob.matIndexBuffer ... }
 
     return true;
 }

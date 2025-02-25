@@ -41,7 +41,6 @@ void VkApp::createPostDescriptor()
     
     m_postDesc.write(m_device, 0, m_renderTarget.Descriptor());
 
-    // @@ Destroy with m_postDesc.destroy(m_device);
 }
 
 // Create a Vulkan buffer to hold the camera matrices, products and inverses.
@@ -54,7 +53,6 @@ void VkApp::createMatrixBuffer()
                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     NAME(m_matrixBuff.buffer, VK_OBJECT_TYPE_BUFFER, "m_matrixBuff.buffer");
 
-    // @@ Destroy with m_matrixBuff.destroy(m_device);
 }
 
 // Create a Vulkan buffer containing pointers to all object buffers

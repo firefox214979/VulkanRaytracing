@@ -15,8 +15,6 @@ static void onErrorCallback(int error, const char* description)
 void drawGUI(VkApp& VK)
 {
     
-    // @@ Once GUI is defined, you can put some gui elements on the screen
-    
     // ImGui::ShowDemoWindow();  // Turn on ImGui's demonstration of all widgets.
 
     // Display the frame rate:

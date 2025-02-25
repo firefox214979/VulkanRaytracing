@@ -19,7 +19,6 @@ void main()
     ivec2 gpos = ivec2(gl_GlobalInvocationID.xy);  // Index of central pixel being denoised
     
     // Values associated with the central pixel
-    // @@ Calculate/read each of these for the CENTRAL PIXEL at gpos
     // cKd = read kdBuff at gpos, clamp value to vec3(0.1) or above
     // cVal = read .xyz of inImage at gpos;  the pixel value to be denoised
     // cDem = cVal/cKd;  The pixel value demodulated.
@@ -55,7 +54,6 @@ void main()
             vec3 pNrm = imageLoad(ndBuff, gpos + offset).xyz;
             float pDepth = imageLoad(ndBuff, gpos + offset).w;
 
-            // @@ Calculate the weight factor by comparing this loop's
             // OFFSET PIXEL to the CENTRAL PIXEL.  The weight is a product of 4 factors:
             //  1: h_weight = gaussian[i+2] for a Gaussian distribution in the horizontal direction
             //  2: v_weight = gaussian[j+2] for a Gaussian distribution in the vertical direction

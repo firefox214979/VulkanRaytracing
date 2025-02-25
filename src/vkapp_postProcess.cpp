@@ -113,10 +113,8 @@ void VkApp::createPostPipeline()
     VkPipelineLayoutCreateInfo createInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
 
 
-    // @@ Projects 2 and beyond: What we eventually want:
     createInfo.setLayoutCount         = 1;
     createInfo.pSetLayouts            = &m_postDesc.descSetLayout;
-    // @@ Project 1: What we can do for now:
     //createInfo.setLayoutCount         = 0;
     //createInfo.pSetLayouts            = nullptr;
     

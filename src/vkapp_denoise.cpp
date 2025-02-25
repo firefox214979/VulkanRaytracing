@@ -27,8 +27,6 @@ void VkApp::createDenoiseBuffer()
   VkImageLayout layout = VK_IMAGE_LAYOUT_GENERAL;
 
   initImageWrap(m_denoiseBuffer, m_windowSize, format, flags, mem, aspect, layout);
-
-  // @@ destroy m_denoiseBuffer
 }
 
 void VkApp::createDenoiseDescriptorSet()
@@ -44,7 +42,6 @@ void VkApp::createDenoiseDescriptorSet()
   m_denoiseDesc.write(m_device, 1, m_denoiseBuffer.Descriptor());   // The output image
   m_denoiseDesc.write(m_device, 2, m_rtKdCurrBuffer.Descriptor());  // The color buffer
   m_denoiseDesc.write(m_device, 3, m_rtNdCurrBuffer.Descriptor());  // The normal:depth buffer
-  // @@ destroy m_denoiseDesc
 }
 
 void VkApp::createDenoiseCompPipeline()
@@ -66,8 +63,6 @@ void VkApp::createDenoiseCompPipeline()
   vkCreateComputePipelines(m_device, {}, 1, &cpCreateInfo, nullptr, &m_denoisePipeline);
   vkDestroyShaderModule(m_device, cpCreateInfo.stage.module, nullptr);
 
-  // @@ destroy m_denoiseCompPipelineLayout
-  // @@ destroy m_denoisePipeline
 }
 
 void VkApp::denoise()
@@ -119,9 +114,6 @@ void VkApp::denoise()
       VK_DEPENDENCY_DEVICE_GROUP_BIT,
       0, nullptr, 0, nullptr, 1, &imgMemBarrier);
 
-    // @@ Copy the denoised results (in m_denoiseBuffer) back to
-    // the input buffer (m_renderTarget) for the next denoising
-    // loop pass.  See VkApp::raytrace for 4 examples of using
     CmdCopyImage(m_denoiseBuffer, m_renderTarget);
   }
 }

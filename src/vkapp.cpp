@@ -192,7 +192,6 @@ VkShaderModule VkApp::createShaderModule(std::string code)
 
     return shaderModule;
 
-    // @@ Verify success of vkCreateShaderModule
 }
 
 VkPipelineShaderStageCreateInfo VkApp::createShaderStageInfo(const std::string&    code,

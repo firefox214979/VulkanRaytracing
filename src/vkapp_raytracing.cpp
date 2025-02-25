@@ -107,7 +107,6 @@ void VkApp::createRtDescriptorSet()
     m_rtDesc.write(m_device, 5, m_rtNdPrevBuffer.Descriptor());
     m_rtDesc.write(m_device, 6, m_rtKdCurrBuffer.Descriptor());
     m_rtDesc.write(m_device, 7, m_rtKdPrevBuffer.Descriptor());
-    //@@ Destroy the descriptor set with: 
 
 }
 
@@ -319,7 +318,6 @@ void VkApp::createRtShaderBindingTable()
 
     staging.destroy(m_device);
 
-    // @@ destroy acceleration structure with m_shaderBindingTableBuff.destroy(m_device);
 }
 
 void VkApp::CmdCopyImage(ImageWrap& src, ImageWrap& dst)
@@ -390,12 +388,11 @@ void VkApp::raytrace()
     // defined in shaders/shared_structs.h) for the ray tracing
     // pipeline.  Each of the following projects, RayCasting,
     // PathTracing, History, and Denoise will modify this structure.
-    // @@ Raycasting:	As directed in the project 3 document, provide 3 temporary light values.
+    // 3 temporary light values.
     //m_pcRay.scLightPos = scLightPos;
     //m_pcRay.scLightInt = scLightInt;
     //m_pcRay.scLightAmb = scLightAmb;
     // 
-    // @@ Pathtracing:	As directed in the project 4 document, remove 3 temporary light values.
     m_pcRay.frameSeed = rand() % 32768;
     m_pcRay.rr = 0.7f; 
 
@@ -407,8 +404,6 @@ void VkApp::raytrace()
 
     m_pcRay.clear = app->myCamera.modified;
     app->myCamera.modified = false;
-    // @@ History:	As directed in the project 5 document, ...
-    // @@ Denoise:	As directed in the project 6 document, ...
     m_pcRay.alignmentTest = 1234;
 
     // Bind the ray tracing pipeline
@@ -442,10 +437,6 @@ void VkApp::raytrace()
     // display on the screen.
     CmdCopyImage(m_rtColCurrBuffer, m_renderTarget);
     
-    // @@ History and Denoising: Copy the three Curr buffers into the three Prev buffers.
-    //    m_rtColCurrBuffer ==>  m_rtColPrevBuffer;
-    //    m_rtKdCurrBuffer  ==>  m_rtKdPrevBuffer
-    //    m_rtNdCurrBuffer  ==>  m_rtNdPrevBuffer
     CmdCopyImage(m_rtColCurrBuffer, m_rtColPrevBuffer);
     CmdCopyImage(m_rtNdCurrBuffer, m_rtNdPrevBuffer);
     CmdCopyImage(m_rtKdCurrBuffer, m_rtKdPrevBuffer);
